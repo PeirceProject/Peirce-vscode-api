@@ -55,11 +55,11 @@ def run_peirce():
         data = [None] * len(coord_array)
         for i in range(len(coord_array)):
             begin = coord_array[i].split("Begin: ")[1].split("\t")[0]
-            begin_line = begin.split("line ")[1].split(",")[0]
-            begin_col = begin.split("column ")[1]
+            begin_line = int(begin.split("line ")[1].split(",")[0])-1
+            begin_col = int(begin.split("column ")[1])-1
             end = coord_array[i].split("End:")[1]
-            end_line = begin.split("line ")[1].split(",")[0]
-            end_col = begin.split("column ")[1]
+            end_line = int(end.split("line ")[1].split(",")[0])-1
+            end_col = int(end.split("column ")[1])
             data[i] = {"coords": {"begin": {"line": begin_line, "character": begin_col}, "end": {"line": end_line, "character": end_col}}, "interp": interp_array[i].split("Existing Interpretation: ")[1]}
         print(json.dumps(data, indent=4, sort_keys=True))
         return data
