@@ -92,6 +92,9 @@ def populate():
     )
     return response
 
+def hash_space(space):
+    return hash(json.dumps(space, sort_keys=True))
+
 def generate_input(notes, spaces):
     order_of_spaces = {}
     dict_count = 1
@@ -102,22 +105,19 @@ def generate_input(notes, spaces):
         if (space["parent"] == None):
             input+="1\n"
             input+=space["label"]+"\n"
-            print(space)
-            order_of_spaces[hash(tuple(sorted(space)))] = dict_count
+            order_of_spaces[hash_space(space)] = dict_count
             dict_count+=1
         else:
             input+="2\n"
             input+=space["label"]+"\n"
-            input+=(str(order_of_spaces[hash(tuple(sorted(space["parent"])))])+"\n")
+            input+=(str(order_of_spaces[hash_space(space["parent"])])+"\n")
             input+=str(space["origin"])+"\n"
             input+=str(space["basis"])+"\n"
-            print(space)
-            order_of_spaces[hash(tuple(sorted(space)))] = dict_count
+            order_of_spaces[hash_space(space)] = dict_count
             dict_count+=1
     for i in range(len(notes)):
         note = notes[i]
         interp = note["interpretation"]
-        print(interp)
         if (interp == None):
             continue;
         name = interp["name"]
@@ -129,7 +129,7 @@ def generate_input(notes, spaces):
             input+="2\n"
         else:
             input+="3\n"
-        input+=(str(order_of_spaces[hash(tuple(sorted(space)))])+"\n")
+        input+=(str(order_of_spaces[hash_space(space)])+"\n")
         input+=str(value)+"\n"
     input+="0\n"
     input+="3\n"
