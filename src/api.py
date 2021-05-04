@@ -51,8 +51,15 @@ def run_peirce():
         interps = stream.read().strip()
         print("Interpretations from Peirce:")
         print(interps)
+
+        ## Running grab_peirce_types.sh
+        stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /api/bin/grab_peirce_types.sh ' + temp_file_name)
+        types = stream.read().strip()
+        print("Types from Peirce:")
+        print(types)
         coord_array = coordinates.splitlines()
         interp_array = interps.splitlines()
+        type_array = types.splitlines()
         data = [None] * len(coord_array)
         for i in range(len(coord_array)):
             begin = coord_array[i].split("Begin: ")[1].split("\t")[0]
@@ -61,7 +68,7 @@ def run_peirce():
             end = coord_array[i].split("End:")[1]
             end_line = int(end.split("line ")[1].split(",")[0])-1
             end_col = int(end.split("column ")[1])
-            data[i] = {"coords": {"begin": {"line": begin_line, "character": begin_col}, "end": {"line": end_line, "character": end_col}}, "interp": interp_array[i].split("Existing Interpretation: ")[1]}
+            data[i] = {"coords": {"begin": {"line": begin_line, "character": begin_col}, "end": {"line": end_line, "character": end_col}}, "interp": interp_array[i].split("Existing Interpretation: ")[1], "type": type_array[i]}
         print(json.dumps(data, indent=4, sort_keys=True))
         return data
     except Exception as e:
@@ -124,13 +131,18 @@ def generate_input(notes, spaces):
         form = interp["form"]
         space = interp["space"]
         value = interp["value"]
-        input+=str(4+i)+"\n"
+        node_type = interp["type"]
+        input+=str(6+i)+"\n"
         if (form == "Duration"):
             input+="2\n"
         else:
             input+="3\n"
+        if "IDENT" not in node_type:
+            input+=name+"\n"
         input+=(str(order_of_spaces[hash_space(space)])+"\n")
         input+=str(value)+"\n"
+    input+="4\n"
+    input+="5\n"
     input+="0\n"
     input+="3\n"
     return input, order_of_spaces
@@ -151,7 +163,7 @@ def generate_input_and_check(notes, spaces):
         finally:
             f.close()
 
-        ## Running grab_peirce_interps.sh
+        ## Running check_peirce_interps.sh
         stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /api/bin/check_peirce_interps.sh ' + temp_file_name)
         interps = stream.read().strip()
         print("Interpretations from Peirce:")
@@ -160,6 +172,16 @@ def generate_input_and_check(notes, spaces):
         data = notes
         for i in range(len(interp_array)):
             data[i]["text"] = interp_array[i].split("Existing Interpretation: ")[1]
+
+        ## Running check_peirce_errors.sh
+        stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /api/bin/check_peirce_errors.sh ' + temp_file_name)
+        errors = stream.read().strip()
+        print("Errors from Peirce:")
+        print(errors)
+        error_array = errors.splitlines()
+        data = notes
+        for i in range(len(error_array)):
+            data[i]["error"] = error_array[i].split("Error Message: ")[1]
         print(json.dumps(data, indent=4, sort_keys=True))
         return data, 0
     except Exception as e:
