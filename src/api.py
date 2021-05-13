@@ -41,19 +41,22 @@ def run_peirce():
         ## This can and should be fixed in the future.
 
         ## Running grab_peirce_coords.sh
-        stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /api/bin/grab_peirce_coords.sh ' + temp_file_name)
+        #stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /peirce/Peirce-vscode-api/bin/grab_peirce_coords.sh ' + temp_file_name)
+        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_coords.sh ' + temp_file_name)
         coordinates = stream.read().strip()
         print("Coordinates from Peirce:")
         print(coordinates)
 
         ## Running grab_peirce_interps.sh
-        stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /api/bin/grab_peirce_interps.sh ' + temp_file_name)
+        #stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /peirce/Peirce-vscode-api/bin/grab_peirce_interps.sh ' + temp_file_name)
+        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_interps.sh ' + temp_file_name)
         interps = stream.read().strip()
         print("Interpretations from Peirce:")
         print(interps)
 
         ## Running grab_peirce_types.sh
-        stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /api/bin/grab_peirce_types.sh ' + temp_file_name)
+       # stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /peirce/Peirce-vscode-api/bin/grab_peirce_types.sh ' + temp_file_name)
+        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_types.sh ' + temp_file_name)
         types = stream.read().strip()
         print("Types from Peirce:")
         print(types)
@@ -164,7 +167,8 @@ def generate_input_and_check(notes, spaces):
             f.close()
 
         ## Running check_peirce_interps.sh
-        stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /api/bin/check_peirce_interps.sh ' + temp_file_name)
+        #stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /peirce/Peirce-vscode-api/bin/check_peirce_interps.sh ' + temp_file_name)
+        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/check_peirce_interps.sh ' + temp_file_name)
         interps = stream.read().strip()
         print("Interpretations from Peirce:")
         print(interps)
@@ -174,7 +178,8 @@ def generate_input_and_check(notes, spaces):
             data[i]["text"] = interp_array[i].split("Existing Interpretation: ")[1]
 
         ## Running check_peirce_errors.sh
-        stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /api/bin/check_peirce_errors.sh ' + temp_file_name)
+        #stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /peirce/Peirce-vscode-api/bin/check_peirce_errors.sh ' + temp_file_name)
+        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/check_peirce_errors.sh ' + temp_file_name)
         errors = stream.read().strip()
         print("Errors from Peirce:")
         print(errors)
