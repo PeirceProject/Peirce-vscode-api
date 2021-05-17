@@ -42,6 +42,8 @@ def run_peirce():
 
         ## Running grab_peirce_coords.sh
         #stream = os.popen('docker run -it --cap-add=SYS_PTRACE --rm --security-opt seccomp=unconfined --name peirce_docker -v llvm-build:/llvm/build -v '+ PEIRCE_ROOT + ':/peirce -v '+ API_ROOT+':/api andrewe8/peirce_docker:latest bash /peirce/Peirce-vscode-api/bin/grab_peirce_coords.sh ' + temp_file_name)
+        print(temp_file_name)
+        
         stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_coords.sh ' + temp_file_name)
         coordinates = stream.read().strip()
         print("Coordinates from Peirce:")
@@ -100,6 +102,7 @@ def populate():
         status=200,
         mimetype='application/json'
     )
+    print(json.dumps(data))
     return response
 
 def hash_space(space):
