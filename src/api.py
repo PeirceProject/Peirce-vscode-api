@@ -4,6 +4,8 @@ import json
 import os
 import subprocess
 import fcntl, os
+import time
+import re
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -11,72 +13,84 @@ peirce_bin = "/peirce/bin/peirce"
 _temp_file_name = "/peirce/Peirce-vscode/temp.cpp"
 temp_file_name = None
 temp_input_file_name = "/peirce/Peirce-vscode-api/inputs.txt"
-'''
+
 peirce_bin = "/peirce/bin/peirce"
 temp_file_name = "temp.cpp"
 temp_input_file_name = "inputs.txt"
 
-peirce_cmd = peirce_bin + " /peirce/ros_test_cases/new_test_cases/src/new_test_cases/src/time_test.cpp -extra-arg=-I/opt/ros/melodic/include/"
-
-
-    #subprocess.Popen([peirce_bin,"/peirce/ros_test_cases/new_test_cases/src/new_test_cases/src/time_test.cpp", "-extra-arg=-I/opt/ros/melodic/include/"], \
-    #subprocess.Popen(["/bin/bash","-c",peirce_cmd], \
-import sys
-ON_POSIX = 'posix' in sys.builtin_module_names
-p = \
-    subprocess.Popen([peirce_bin,"/peirce/ros_test_cases/new_test_cases/src/new_test_cases/src/time_test.cpp", "-extra-arg=-I/opt/ros/melodic/include/"], \
-    bufsize=1,stdin=subprocess.PIPE, stdout=subprocess.PIPE, close_fds=ON_POSIX )
-#fl = fcntl.fcntl(peirce_process.stdout.fileno(), fcntl.F_GETFL)
-#fcntl.fcntl(peirce_process.stdout.fileno(), fcntl.F_SETFL, fl|os.O_NONBLOCK)
-#import sys
-from threading  import Thread
-
-try:
-    from queue import Queue, Empty
-except ImportError:
-    from Queue import Queue, Empty  # python 2.x
-
-def enqueue_output(out, queue):
-    for line in iter(out.readline, b''):
-        queue.put(line)
-    out.close()
-
-q = Queue()
-t = Thread(target=enqueue_output, args=(p.stdout, q))
-t.daemon = True # thread dies with the program
-t.start()
-
-# ... do other things here
-
-# read line without blocking
-try:  
-    line = q.get(timeout=.1)
-    print(line)
-except Empty:
-    print('no output yet')
-else: # got line
-    print('ok')
-
-print('rpinting')
-i = 0
-try:  
-    line = q.get_nowait() # or q.get(timeout=.1)
-    print(line)
-except Empty:
-    print('no output yet')
-print('comm')
-data = p.communicate()
-print('go')
-print(data)
-
-print('go')
-for line_ in p.stdout:
-    print(str(line_.decode('UTF-8')))
-
-
-for line_ in p.stdout:
-    print(str(line_.decode('UTF-8')))
+file_name = None
+p = None
 '''
+if (form == "Duration"):
+            input+="2\n"
+        elif(form == "Time"):
+            input+="3\n"
+        elif(form=="Scalar"):
+            input+="4\n"
+        elif(form=="Time Transform"):
+            input+="5\n"
+        elif(form=="Position1D"):
+            input+="7\n"
+        elif(form=="Displacement1D"):
+            input+="6\n"
+        elif(form=="Geom1D Transform"):
+            input+="8\n"
+'''
+interp_type_to_menu_index = \
+{
+    "Duration":"2",
+    "Time":"3",
+    "Scalar":"4",
+    "Time Transform":"5",
+    "Position1D":"7",
+    "Displacement1D":"6",
+    "Geom1D Transform":"8"
+}
+
+def list_print(str_list):
+    for ln_ in str_list:
+        print(ln_)
+
+def read_data():
+    global p
+    lns_ = []
+    while(len(lns_)==0):#don't call this unless you're getting output
+        for ln_ in p.stdout:
+            lns_.append(ln_.decode('utf-8'))
+        if(len(lns_)==0):
+            time.sleep(.25)
+    return lns_
+
+def send_cmd(cmd, wait = True):
+    global p
+    p.stdin.write(cmd.encode('utf-8'))
+    p.stdin.flush()
+    if(wait):
+        time.sleep(6)
+
+
+def get_state_process(f_name):
+    global p
+    global file_name
+    if(is_running_file(f_name)):
+        return
+    if p is not None:
+        p.kill()
+    print('running peirce on file' + f_name)
+    print('old file')
+    print(file_name)
+    file_name = f_name
+    peirce_cmd = peirce_bin + " " + f_name + " -extra-arg=-I/opt/ros/melodic/include/"
+    p = \
+        subprocess.Popen(peirce_cmd+"", shell = True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)#, close_fds=ON_POSIX)
+    fl = fcntl.fcntl(p.stdout.fileno(), fcntl.F_GETFL)
+    fcntl.fcntl(p.stdout.fileno(), fcntl.F_SETFL, fl|os.O_NONBLOCK)
+    time.sleep(3)
+    read_data()
+    print('ran peirce')
+def is_running_file(f_name):
+    global file_name
+    return file_name == f_name
 
 @app.route('/', methods=["GET"])
 def home():
@@ -86,21 +100,7 @@ def home():
 def api_home():
     return "<h1>Welcome to the Peirce VSCode Extension API!</h1>"
 
-def create_file(text):
-    if (os.path.exists(_temp_file_name)):
-        pass
-        #os.remove(temp_file_name)
-    try:
-        f = open(_temp_file_name,"w")
-        f.write(text)
-        f.close()
-        return 0
-    except Exception as e:
-        print('failed to create file')
-        print(e)
-        return 1
-
-def run_peirce(fname = None):
+def get_state(fname = None):
     try:
         print("running...")
 
@@ -112,224 +112,55 @@ def run_peirce(fname = None):
         ## Running grab_peirce_coords.sh
         print(temp_file_name)
         
-        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_coords.sh ' + temp_file_name)
-        coordinates = stream.read().strip()
-        print("Coordinates from Peirce:")
-        print(coordinates)
+        #stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_coords.sh ' + temp_file_name)
+        #coordinates = stream.read().strip()
+        #print("Coordinates from Peirce:")
+        #print(coordinates)
 
-        ## Running grab_peirce_interps.sh
-        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_interps.sh ' + temp_file_name)
-        interps = stream.read().strip()
-        print("Interpretations from Peirce:")
-        print(interps)
+        send_cmd('0\n', False)
+        resp = read_data()
+        print('get coords response:::')
+        #print()
+        coords2 = []
+        interps2 = []
+        types2 = []
+        for resp_ in resp:
+            #print(resp_)
+            if 'Existing Interpretation' in resp_:
+            #    print(' existing')
+                interps2.append(resp_.strip())
+            else :
+                pass 
+            #    print('not existing')
+            if 'Begin' in resp_ and 'End' in resp_:
+            #    print(' beginning')
+                coords2.append(resp_.strip())
+            else:
+                pass
+            #    print('not beginning')
+            m = re.search('Node Type : ([\w]*),',resp_)
+            if m :
+                #print(' type')
+                types2.append(m.group(1).strip())
+            else:
+                pass
+                #print('not type')
 
-    
-
-        ## Running grab_peirce_types.sh
-        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_types.sh ' + temp_file_name)
-        types = stream.read().strip()
-        print("Types from Peirce:")
-        print(types)
-        coord_array = coordinates.splitlines()
-        interp_array = interps.splitlines()
-        type_array = types.splitlines()
-        data = [None] * len(coord_array)
-        for i in range(len(coord_array)):
-            begin = coord_array[i].split("Begin: ")[1].split("\t")[0]
-            begin_line = int(begin.split("line ")[1].split(",")[0])-1
-            begin_col = int(begin.split("column ")[1])-1
-            end = coord_array[i].split("End:")[1]
-            end_line = int(end.split("line ")[1].split(",")[0])-1
-            end_col = int(end.split("column ")[1])
-            data[i] = {"coords": {"begin": {"line": begin_line, "character": begin_col}, "end": {"line": end_line, "character": end_col}}, "interp": interp_array[i].split("Existing Interpretation: ")[1], "type": type_array[i]}
-        print(json.dumps(data, indent=4, sort_keys=True))
-
-        
-        #stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_types.sh ' + temp_file_name)
-        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_constructor_interps.sh ' + temp_file_name)
-        peirce_cinterps = coordinates = stream.read().strip().splitlines()
-        print('construcotr interps : ')
-        print(peirce_cinterps)
-        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_constructor_names.sh ' + temp_file_name)
-        peirce_cnames = stream.read().strip().splitlines()
-        print('constructor names : ')
-        print(peirce_cnames)
-        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_constructor_types.sh ' + temp_file_name)
-        peirce_ctypes = stream.read().strip().splitlines()
-        print('constructor types')
-        print(peirce_ctypes)
-        cdata = [None] * len(peirce_cinterps)
-        for i in range(len(peirce_cinterps)):
-            cdata[i] = { \
-                "interp": peirce_cinterps[i].split("Existing Interpretation: ")[1],\
-                         "type": peirce_ctypes[i], \
-                "name": peirce_cnames[i].split("Snippet: ")[1]        }
-        print('PRINTING C DATA')
-        print(cdata)
-        return data, cdata
-    except Exception as e:
-        print(e)
-
-@app.route('/api/populate', methods=["POST"])
-def populate():
-    content = request.get_json()
-    print(content)
-    print(json.dumps(content, indent=4, sort_keys=True))
-    print("Notes?")
-    print(content["notes"])
-    file_text = content["file"]
-    file_name = content["fileName"]
-    print("FILE NAME")
-    print(file_name)
-    print("TEMP FILE NAME : ")
-    print(_temp_file_name)
-    if (create_file(file_text) != 0):
-        response = app.response_class(
-            status=500,
-        )
-        return response
-    global temp_file_name
-    temp_file_name = file_name if file_name else _temp_file_name 
-    data = {}
-    data, cdata = run_peirce()
-    notes = content["notes"]
-    response = app.response_class(
-        response=json.dumps({'data':data,'cdata':cdata}),
-        status=200,
-        mimetype='application/json'
-    )
-    print(json.dumps(data))
-    return response
-
-def hash_space(space):
-    return hash(json.dumps(space, sort_keys=True))
-
-def generate_input(notes, spaces, constructors):
-    order_of_spaces = {}
-    dict_count = 1
-    input=""
-    for space in spaces:
-        input+="2\n"
-        if(space["space"] == "Classical Time Coordinate Space"):
-            input+="1\n"
-
-        elif(space["space"] == "Classical Geom1D Coordinate Space"):
-            input+="2\n"
-
-        if (space["parent"] == None):
-            input+="1\n"
-            input+=space["label"]+"\n"
-            order_of_spaces[hash_space(space)] = dict_count
-            dict_count+=1
-        else:
-            input+="2\n"
-            input+=space["label"]+"\n"
-            input+=(str(order_of_spaces[hash_space(space["parent"])])+"\n")
-            input+=str(space["origin"])+"\n"
-            input+=str(space["basis"])+"\n"
-            order_of_spaces[hash_space(space)] = dict_count
-            dict_count+=1
-    for i in range(len(notes)):
-        note = notes[i]
-        interp = note["interpretation"]
-        if (interp == None):
-            continue;
-        name = interp["name"]
-        form = interp["form"]
-        space = interp["space"]
-        value = interp["value"]
-        node_type = interp["type"]
-        input+=str(7+i)+"\n"
-        if (form == "Duration"):
-            input+="2\n"
-        elif(form == "Time"):
-            input+="3\n"
-        elif(form=="Scalar"):
-            input+="4\n"
-        elif(form=="Time Transform"):
-            input+="5\n"
-        elif(form=="Position1D"):
-            input+="7\n"
-        elif(form=="Displacement1D"):
-            input+="6\n"
-        elif(form=="Geom1D Transform"):
-            input+="8\n"
-        if "IDENT" not in node_type:
-            input+=name+"\n"
-        input+=(str(order_of_spaces[hash_space(space)])+"\n")
-        input+=str(value)+"\n"
-    input+="5\n"
-    for i in range(len(constructors)):
-        cons = constructors[i]
-        interp = cons["interpretation"]
-        if (interp == None):
-            continue
-        input+=str(2+i)+"\n"
-        name = interp["name"]
-        form = interp["form"]
-        space = interp["space"]
-        value = interp["value"]
-        node_type = interp["type"]
-        if (form == "Duration"):
-            input+="2\n"
-        elif(form == "Time"):
-            input+="3\n"
-        elif(form=="Scalar"):
-            input+="4\n"
-        elif(form=="Time Transform"):
-            input+="5\n"
-        elif(form=="Position1D"):
-            input+="7\n"
-        elif(form=="Displacement1D"):
-            input+="6\n"
-        elif(form=="Geom1D Transform"):
-            input+="8\n"
-        input+=(str(order_of_spaces[hash_space(space)])+"\n")
-        input+=str(value)+"\n"
-    input+="1\n" 
-        
-    input+="4\n"
-    input+="0\n"
-    input+="3\n"
-    #print('INPUT!!!')
-    #print(input)
-    #print(order_of_spaces)
-    return input, order_of_spaces
-
-def generate_input_and_check(notes, spaces, constructors):
-    try:
-        print("generating input...")
-        print(notes)
-
-        if (os.path.exists(temp_input_file_name)):
-            #os.remove(temp_input_file_name)
-            pass
-        try:
-            f = open(temp_input_file_name,"w")
-            f2 = open('/peirce/Peirce-vscode-api/inputs2.txt','w')
-            inputs_ = generate_input(notes, spaces, constructors)[0]
-            f.write(inputs_)
-            f2.write(inputs_)
-        except OSError as e:
-            print(e)
-            return {}, 1;
-        finally:
-            f.close()
-            f2.close()
-        ## Running check_peirce_interps.sh
-        global temp_file_name
-        print(temp_file_name)
-        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/check_peirce_interps.sh ' + temp_file_name)
-        interps = stream.read().strip()
-        print("Interpretations from Peirce:")
-        print(interps)
-        interp_array = interps.splitlines()
-        data = notes
-        for i in range(len(interp_array)):
-            data[i]["text"] = interp_array[i].split("Existing Interpretation: ")[1]
-
-        ## Running check_peirce_errors.sh
-        stream = os.popen('bash /peirce/Peirce-vscode-api/bin/check_peirce_errors.sh ' + temp_file_name)
+        send_cmd("4\n",False)
+        error_data = read_data()
+        print('ERROR DATA:')
+        list_print(error_data)
+        error_msgs = []
+        for ln_ in error_data:
+            print('error ln : ' + ln_)
+            if "Error Message: " in ln_:
+                print('found error')
+                error_msgs.append(ln_.strip().split("Error Message: ")[1])
+                print(error_msgs[-1])
+            else:
+                print('not found!')
+            
+        '''
         errors = stream.read().strip()
         print("Errors from Peirce:")
         print(errors)
@@ -338,47 +169,346 @@ def generate_input_and_check(notes, spaces, constructors):
         data = notes
         for i in range(len(error_array)):
             data[i]["error"] = error_array[i].split("Error Message: ")[1]
-        print(json.dumps(data, indent=4, sort_keys=True))
-        return data, 0
+        '''
+
+        ## Running grab_peirce_interps.sh
+        #stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_interps.sh ' + temp_file_name)
+        #interps = stream.read().strip()
+        #print("Interpretations from Peirce:")
+        #print(interps)
+
+    
+
+        ## Running grab_peirce_types.sh
+        #stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_types.sh ' + temp_file_name)
+        #types = stream.read().strip()
+        #print("Types from Peirce:")
+        #print(types)
+        coord_array = coords2#coordinates.splitlines()
+        interp_array = interps2#interps.splitlines()
+        type_array = types2#types.splitlines()
+
+        print('TERM RESULTS:')
+        print(resp_)
+        print(coord_array)
+        print(interp_array)
+        print(type_array)
+        print(error_msgs)
+
+        data = [None] * len(coord_array)
+        for i in range(len(coord_array)):
+            begin = coord_array[i].split("Begin: ")[1].split("\t")[0]
+            begin_line = int(begin.split("line ")[1].split(",")[0])-1
+            begin_col = int(begin.split("column ")[1])-1
+            end = coord_array[i].split("End:")[1]
+            end_line = int(end.split("line ")[1].split(",")[0])-1
+            end_col = int(end.split("column ")[1])
+            data[i] = \
+                {
+                    "coords": {
+                        "begin": {"line": begin_line, "character": begin_col}, 
+                        "end": {"line": end_line, "character": end_col}}, 
+                    "interp": interp_array[i].split("Existing Interpretation: ")[1], 
+                    "type": type_array[i],
+                    "error": error_msgs[i]
+                }
+        
+        send_cmd("5\n0\n1\n", True)
+        cons_str = read_data()
+        print(cons_str)
+        peirce_cinterps = []
+        peirce_cnames = []
+        peirce_ctypes = []
+        for resp_ in cons_str:
+            if 'Existing Interpretation' in resp_:
+                peirce_cinterps.append(resp_.strip())
+            m = re.search('Snippet: (.*)',resp_)
+            if m:
+                peirce_cnames.append(m.group(1).strip())
+            m = re.search('Type : (.*), Ann',resp_)
+            if m :
+                peirce_ctypes.append(m.group(1).strip())
+
+
+        for data_ in cons_str:
+            print(data_)
+
+        print('CONSTRUCTOR RESULTS:')
+        print(peirce_cinterps)
+        print(peirce_cnames)
+        print(peirce_ctypes)
+
+
+        cdata = [None] * len(peirce_cinterps)
+        for i in range(len(peirce_cinterps)):
+            cdata[i] = { \
+                "interp": peirce_cinterps[i].split("Existing Interpretation: ")[1],\
+                         "type": peirce_ctypes[i], \
+                "name": peirce_cnames[i]        }
+        #print('PRINTING C DATA')
+        #print(cdata)
+        return data, cdata
     except Exception as e:
         print(e)
-        return {}, 1
 
-@app.route('/api/check', methods=["POST"])
-def check():
+@app.route('/api/getState', methods=["POST"])
+def populate():
+    print("PRINTING")
     content = request.get_json()
-    print(content)
-    print(json.dumps(content, indent=4, sort_keys=True))
-    print("File?")
+    
+    file_text = content["file"]
     file_name = content["fileName"]
+
+
+    if not is_running_file(file_name):
+        get_state_process(file_name)
+
+
+    print("FILE NAME")
+    print(file_name)
+
     global temp_file_name
     temp_file_name = file_name if file_name else _temp_file_name 
-    #print(content["file"])
-    print("Notes?")
-    print(content["notes"])
-    print("Spaces?")
-    print(content["spaces"])
-    print("constructors?")
-    print(content["constructors"])
-    file_text = content["file"]
-    data = {}
 
+    data, cdata = get_state()
     notes = content["notes"]
-    spaces = content["spaces"]
-    constructors = content["constructors"]
-    data, error = generate_input_and_check(notes, spaces, constructors)
-    print("error?")
-    print(error)
-    if (error == 1):
-        response = app.response_class(
-            status=500,
-        )
-        return response
-    print(data)
-    print(error)
-
     response = app.response_class(
-        response=json.dumps(data),
+        response=json.dumps({'data':data,'cdata':cdata}),
+        status=200,
+        mimetype='application/json'
+    )
+    if(len(data) > 20):
+        print('whats going on here???')
+        return
+    print(json.dumps({'data':data,'cdata':cdata}))
+    return response
+
+
+@app.route('/api/createSpace', methods=["POST"])
+def createSpaceInterpretation():
+    content = request.get_json()
+    space = content["space"]
+    send_cmd("2\n", False)
+    
+    list_print(read_data())
+
+    if(space["space"] == "Classical Time Coordinate Space"):
+        send_cmd("1\n", False)
+        list_print(read_data())
+
+    elif(space["space"] == "Classical Geom1D Coordinate Space"):
+        send_cmd("2\n", False)
+        list_print(read_data())
+
+    if (space["parent"] == None):
+        send_cmd("1\n", False)
+        list_print(read_data())
+        send_cmd(space["label"]+"\n", False)
+        list_print(read_data())
+    else:
+        print('DERIVED SP')
+        send_cmd("2\n", False)
+        list_print(read_data())
+        send_cmd(space["label"]+"\n", False)
+        parent_prompt = read_data()
+        print(parent_prompt)
+        options = []
+        for ln_ in parent_prompt:
+            m = re.search(' - ([\w]*) ',ln_)
+            if(m):
+                options.append(m.groups(1)[0])
+        print('parent options')
+        print(options)
+        for i in range(len(options)):
+            if options[i] == space["parent"]["label"]:
+                send_cmd(str(i+1)+"\n",False)
+                read_data()
+                break
+
+        send_cmd(str(space["origin"])+"\n",False)
+        list_print(read_data())
+        send_cmd(str(space["basis"])+"\n",False)
+        list_print(read_data())
+        #order_of_spaces[hash_space(space)] = dict_count
+        #dict_count+=1
+
+    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
+@app.route('/api/createTermInterpretation', methods=["POST"])
+def createTermInterpretation():
+    content = request.get_json()
+    term = content["term"]
+    idx = 7
+    data, cdata = get_state()
+    for i in range(len(data)):
+        term_ = data[i]
+        if \
+            term_["coords"]["begin"]["line"] == term["positionStart"]["line"] and \
+            term_["coords"]["begin"]["character"] == term["positionStart"]["character"] and \
+            term_["coords"]["end"]["line"] == term["positionEnd"]["line"] and \
+            term_["coords"]["end"]["character"] == term["positionEnd"]["character"] and \
+            term_["type"] == term["type"]:
+            idx += i
+            break
+
+    print(idx)
+    print('TERM : ')
+    print(term)
+
+    send_cmd(str(idx)+"\n",False)
+    print(read_data())
+    interp = term["interpretation"]
+    name = interp["name"]
+    form = interp["form"]
+    space = interp["space"]
+    value = interp["value"]
+    node_type = term["type"]
+
+    print('sending option....')
+    print(form)
+    print(str(interp_type_to_menu_index[form]))
+    send_cmd(str(interp_type_to_menu_index[form])+"\n",False)
+
+    space_prompt = None
+    if "IDENT" not in node_type: #this doesnt need to be here. check the prompts. 
+        print('sending name cmd...')
+        print(read_data())
+        send_cmd(name+"\n", False)
+        print('sent?')
+    space_prompt = read_data()
+    list_print(space_prompt)
+    options = []
+    for ln_ in space_prompt:
+            m = re.search(' - (.*) ', ln_.strip())
+            print('AT LINE : ' + ln_)
+            if(m):
+                options.append(m.groups(1)[0])
+                print('found option  ')
+                print(m.groups(1)[0])
+            else:
+                print('no option')
+    print('parent options')
+    print(options)
+    print('space target?')
+    print(space)
+    for i in range(len(options)):
+        if options[i] == space["label"]:
+            print('found!')
+            send_cmd(str(i+1)+"\n",False)
+            list_print(read_data())
+            break
+        else:
+            print('not found!')
+    
+    print('sending value')
+    print(value)
+    value = value or 0
+    if True: #value is not None:
+        print('sending value')
+        print(value)
+        send_cmd(str(value) + "\n",True)
+        print(read_data())
+
+    #send_cmd("0\n",True)
+    #list_print(read_data())
+
+    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
+    
+
+@app.route('/api/createConstructorInterpretation', methods=["POST"])
+def createConstructorInterpretation():
+    content = request.get_json()
+    constructor = content["constructor"]
+    idx = 2
+    data, cdata = get_state()
+    print('CONSTRUCTOR : ')
+    print(constructor)
+    send_cmd("5\n", False)
+    list_print(read_data())
+    for i in range(len(cdata)):
+        cons_ = cdata[i]
+        print('cons_i')
+        print(cons_)
+        
+        if \
+            cons_["name"] == constructor["name"]:
+            print('found term!')
+            idx += i
+            break
+        else: 
+            print('term not found!')
+
+    send_cmd(str(idx)+"\n",False)
+    print(read_data())
+
+
+    interp = constructor["interpretation"]
+    name = interp["name"]
+    form = interp["form"]
+    space = interp["space"]
+    value = interp["value"]
+    node_type = constructor["type"]
+
+    
+    send_cmd(str(interp_type_to_menu_index[form])+"\n",False)
+
+    space_prompt = None
+    
+    space_prompt = read_data()
+    list_print(space_prompt)
+    options = []
+    for ln_ in space_prompt:
+            m = re.search(' - (.*) ', ln_.strip())
+            print('AT LINE : ' + ln_)
+            if(m):
+                options.append(m.groups(1)[0])
+                print('found option  ')
+                print(m.groups(1)[0])
+            else:
+                print('no option')
+    print('parent options')
+    print(options)
+    print('space target?')
+    print(space)
+    for i in range(len(options)):
+        if options[i] == space["label"]:
+            print('found!')
+            send_cmd(str(i+1)+"\n",False)
+            list_print(read_data())
+            break
+        else:
+            print('not found!')
+    
+    print('sending value')
+    print(value)
+    value = value or 0
+    if True: #value is not None:
+        print('sending value')
+        print(value)
+        send_cmd(str(value) + "\n",False)
+        print(read_data())
+
+    send_cmd("1\n",True)
+
+    list_print(read_data())
+
+    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
+@app.route('/api/check2', methods=["POST"])
+def check2():
+    content = request.get_json()
+    notes = content["notes"]
+    data, cdata = get_state()
+    print('notes!!!')
+    print(notes)
+    for i in range(len(notes)):
+        notes[i]["error"] = data[i]["error"]
+
+    print('returning...')
+    print(notes)
+    response = app.response_class(
+        response=json.dumps(notes),
         status=200,
         mimetype='application/json'
     )
