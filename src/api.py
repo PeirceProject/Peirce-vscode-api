@@ -21,19 +21,19 @@ temp_input_file_name = "inputs.txt"
 file_name = None
 p = None
 '''
-if (form == "Duration"):
+if (interp_type == "Duration"):
             input+="2\n"
-        elif(form == "Time"):
+        elif(interp_type == "Time"):
             input+="3\n"
-        elif(form=="Scalar"):
+        elif(interp_type=="Scalar"):
             input+="4\n"
-        elif(form=="Time Transform"):
+        elif(interp_type=="Time Transinterp_type"):
             input+="5\n"
-        elif(form=="Position1D"):
+        elif(interp_type=="Position1D"):
             input+="7\n"
-        elif(form=="Displacement1D"):
+        elif(interp_type=="Displacement1D"):
             input+="6\n"
-        elif(form=="Geom1D Transform"):
+        elif(interp_type=="Geom1D Transinterp_type"):
             input+="8\n"
 '''
 interp_type_to_menu_index = \
@@ -44,7 +44,10 @@ interp_type_to_menu_index = \
     "Time Transform":"5",
     "Position1D":"7",
     "Displacement1D":"6",
-    "Geom1D Transform":"8"
+    "Geom1D Transform":"8",
+    "Displacement3D":"9",
+    "Position3D":"10",
+    "Geom3D Transform":"11"
 }
 
 def list_print(str_list):
@@ -62,6 +65,7 @@ def read_data():
     return lns_
 
 def send_cmd(cmd, wait = True):
+    print(cmd)
     global p
     p.stdin.write(cmd.encode('utf-8'))
     p.stdin.flush()
@@ -80,7 +84,9 @@ def get_state_process(f_name):
     print('old file')
     print(file_name)
     file_name = f_name
-    peirce_cmd = peirce_bin + " " + f_name + " -extra-arg=-I/opt/ros/melodic/include/"
+    #peirce_cmd = "valgrind --leak-check=yes " + peirce_bin + " " + f_name + " -extra-arg=-I/opt/ros/melodic/include/"
+    peirce_cmd = "" + peirce_bin + " " + f_name + " -extra-arg=-I/opt/ros/melodic/include/"
+    
     p = \
         subprocess.Popen(peirce_cmd+"", shell = True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)#, close_fds=ON_POSIX)
     fl = fcntl.fcntl(p.stdout.fileno(), fcntl.F_GETFL)
@@ -160,30 +166,6 @@ def get_state(fname = None):
             else:
                 print('not found!')
             
-        '''
-        errors = stream.read().strip()
-        print("Errors from Peirce:")
-        print(errors)
-
-        error_array = errors.splitlines()
-        data = notes
-        for i in range(len(error_array)):
-            data[i]["error"] = error_array[i].split("Error Message: ")[1]
-        '''
-
-        ## Running grab_peirce_interps.sh
-        #stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_interps.sh ' + temp_file_name)
-        #interps = stream.read().strip()
-        #print("Interpretations from Peirce:")
-        #print(interps)
-
-    
-
-        ## Running grab_peirce_types.sh
-        #stream = os.popen('bash /peirce/Peirce-vscode-api/bin/grab_peirce_types.sh ' + temp_file_name)
-        #types = stream.read().strip()
-        #print("Types from Peirce:")
-        #print(types)
         coord_array = coords2#coordinates.splitlines()
         interp_array = interps2#interps.splitlines()
         type_array = types2#types.splitlines()
@@ -209,11 +191,11 @@ def get_state(fname = None):
                         "begin": {"line": begin_line, "character": begin_col}, 
                         "end": {"line": end_line, "character": end_col}}, 
                     "interp": interp_array[i].split("Existing Interpretation: ")[1], 
-                    "type": type_array[i],
+                    "node_type": type_array[i],
                     "error": error_msgs[i]
                 }
         
-        send_cmd("5\n0\n1\n", True)
+        send_cmd("5\n0\n1\n", False)
         cons_str = read_data()
         print(cons_str)
         peirce_cinterps = []
@@ -243,7 +225,7 @@ def get_state(fname = None):
         for i in range(len(peirce_cinterps)):
             cdata[i] = { \
                 "interp": peirce_cinterps[i].split("Existing Interpretation: ")[1],\
-                         "type": peirce_ctypes[i], \
+                         "node_type": peirce_ctypes[i], \
                 "name": peirce_cnames[i]        }
         #print('PRINTING C DATA')
         #print(cdata)
@@ -271,7 +253,7 @@ def populate():
     temp_file_name = file_name if file_name else _temp_file_name 
 
     data, cdata = get_state()
-    notes = content["notes"]
+    notes = content["terms"]
     response = app.response_class(
         response=json.dumps({'data':data,'cdata':cdata}),
         status=200,
@@ -300,6 +282,10 @@ def createSpaceInterpretation():
         send_cmd("2\n", False)
         list_print(read_data())
 
+    elif(space["space"] == "Classical Geom3D Coordinate Space"):
+        send_cmd("3\n", False)
+        list_print(read_data())
+
     if (space["parent"] == None):
         send_cmd("1\n", False)
         list_print(read_data())
@@ -325,10 +311,15 @@ def createSpaceInterpretation():
                 read_data()
                 break
 
-        send_cmd(str(space["origin"])+"\n",False)
-        list_print(read_data())
-        send_cmd(str(space["basis"])+"\n",False)
-        list_print(read_data())
+        for i in range(len(space["origin"])):
+            send_cmd(str(space["origin"][i])+"\n",False)
+            list_print(read_data())
+        for i in range(len(space["basis"])):
+            send_cmd(str(space["basis"][i])+"\n",False)
+            list_print(read_data())
+        #list_print(read_data())
+        #send_cmd(str(space["basis"])+"\n",False)
+        #list_print(read_data())
         #order_of_spaces[hash_space(space)] = dict_count
         #dict_count+=1
 
@@ -347,7 +338,7 @@ def createTermInterpretation():
             term_["coords"]["begin"]["character"] == term["positionStart"]["character"] and \
             term_["coords"]["end"]["line"] == term["positionEnd"]["line"] and \
             term_["coords"]["end"]["character"] == term["positionEnd"]["character"] and \
-            term_["type"] == term["type"]:
+            term_["node_type"] == term["node_type"]:
             idx += i
             break
 
@@ -359,55 +350,100 @@ def createTermInterpretation():
     print(read_data())
     interp = term["interpretation"]
     name = interp["name"]
-    form = interp["form"]
-    space = interp["space"]
-    value = interp["value"]
-    node_type = term["type"]
+    interp_type = interp["interp_type"]
+    space = interp["space"] if "space" in interp else None
+    domain = interp["domain"] if "domain" in interp else None
+    codomain = interp["codomain"] if "codomain" in interp else None
+    value = interp["value"] if "value" in interp else None
+    node_type = term["node_type"]
 
     print('sending option....')
-    print(form)
-    print(str(interp_type_to_menu_index[form]))
-    send_cmd(str(interp_type_to_menu_index[form])+"\n",False)
+    print(interp_type)
+    print(str(interp_type_to_menu_index[interp_type]))
+    send_cmd(str(interp_type_to_menu_index[interp_type])+"\n",False)
 
-    space_prompt = None
     if "IDENT" not in node_type: #this doesnt need to be here. check the prompts. 
         print('sending name cmd...')
         print(read_data())
         send_cmd(name+"\n", False)
         print('sent?')
-    space_prompt = read_data()
-    list_print(space_prompt)
-    options = []
-    for ln_ in space_prompt:
-            m = re.search(' - (.*) ', ln_.strip())
-            print('AT LINE : ' + ln_)
-            if(m):
-                options.append(m.groups(1)[0])
-                print('found option  ')
-                print(m.groups(1)[0])
+    if space:
+        space_prompt = None
+        space_prompt = read_data()
+        list_print(space_prompt)
+        options = []
+        for ln_ in space_prompt:
+                m = re.search(' - (.*) ', ln_.strip())
+                print('AT LINE : ' + ln_)
+                if(m):
+                    options.append(m.groups(1)[0])
+                    print('found option  ')
+                    print(m.groups(1)[0])
+                else:
+                    print('no option')
+        print('parent options')
+        print(options)
+        print('space target?')
+        print(space)
+        for i in range(len(options)):
+            if options[i] == space["label"]:
+                print('found!')
+                send_cmd(str(i+1)+"\n",False)
+                list_print(read_data())
+                break
             else:
-                print('no option')
-    print('parent options')
-    print(options)
-    print('space target?')
-    print(space)
-    for i in range(len(options)):
-        if options[i] == space["label"]:
-            print('found!')
-            send_cmd(str(i+1)+"\n",False)
-            list_print(read_data())
-            break
-        else:
-            print('not found!')
+                print('not found!')
     
-    print('sending value')
-    print(value)
-    value = value or 0
-    if True: #value is not None:
+    if domain and codomain:
+        space_prompt = None
+        space_prompt = read_data()
+        list_print(space_prompt)
+        options = []
+        for ln_ in space_prompt:
+                m = re.search(' - (.*) ', ln_.strip())
+                print('AT LINE : ' + ln_)
+                if(m):
+                    options.append(m.groups(1)[0])
+                    print('found option  ')
+                    print(m.groups(1)[0])
+                else:
+                    print('no option')
+        print('parent options')
+        print(options)
+        print('space target?')
+        print(domain)
+        for i in range(len(options)):
+            if options[i] == domain["label"]:
+                print('found!')
+                send_cmd(str(i+1)+"\n",False)
+                list_print(read_data())
+                break
+            else:
+                print('not found!')
+        print('space target?')
+        print(codomain)
+        for i in range(len(options)):
+            if options[i] == codomain["label"]:
+                print('found!')
+                send_cmd(str(i+1)+"\n",True)
+                list_print(read_data())
+                break
+            else:
+                print('not found!')
+
+    if value:
         print('sending value')
         print(value)
-        send_cmd(str(value) + "\n",True)
-        print(read_data())
+        value = value or [0]
+        #if True: #value is not None:
+        for i in range(len(value)):
+            print('sending value')
+            print(value)
+            if i == len(value)-1:
+                send_cmd(str(value[i]) + "\n",True)
+            else:
+                send_cmd(str(value[i]) + "\n",False)
+            print(read_data())
 
     #send_cmd("0\n",True)
     #list_print(read_data())
@@ -445,51 +481,51 @@ def createConstructorInterpretation():
 
     interp = constructor["interpretation"]
     name = interp["name"]
-    form = interp["form"]
-    space = interp["space"]
-    value = interp["value"]
-    node_type = constructor["type"]
+    interp_type = interp["interp_type"]
+    space = interp["space"] if "space" in interp else None
+    domain = interp["domain"] if "domain" in interp else None
+    codomain = interp["codomain"] if "codomain" in interp else None
+    value = interp["value"] if "value" in interp else None
+    node_type = constructor["node_type"]
 
     
-    send_cmd(str(interp_type_to_menu_index[form])+"\n",False)
+    send_cmd(str(interp_type_to_menu_index[interp_type])+"\n",False)
 
-    space_prompt = None
-    
-    space_prompt = read_data()
-    list_print(space_prompt)
-    options = []
-    for ln_ in space_prompt:
-            m = re.search(' - (.*) ', ln_.strip())
-            print('AT LINE : ' + ln_)
-            if(m):
-                options.append(m.groups(1)[0])
-                print('found option  ')
-                print(m.groups(1)[0])
+    if space:
+        space_prompt = None
+        
+        space_prompt = read_data()
+        list_print(space_prompt)
+        options = []
+        for ln_ in space_prompt:
+                m = re.search(' - (.*) ', ln_.strip())
+                print('AT LINE : ' + ln_)
+                if(m):
+                    options.append(m.groups(1)[0])
+                    print('found option  ')
+                    print(m.groups(1)[0])
+                else:
+                    print('no option')
+        print('parent options')
+        print(options)
+        print('space target?')
+        print(space)
+        for i in range(len(options)):
+            if options[i] == space["label"]:
+                print('found!')
+                send_cmd(str(i+1)+"\n",False)
+                list_print(read_data())
+                break
             else:
-                print('no option')
-    print('parent options')
-    print(options)
-    print('space target?')
-    print(space)
-    for i in range(len(options)):
-        if options[i] == space["label"]:
-            print('found!')
-            send_cmd(str(i+1)+"\n",False)
-            list_print(read_data())
-            break
-        else:
-            print('not found!')
+                print('not found!')
     
-    print('sending value')
-    print(value)
-    value = value or 0
-    if True: #value is not None:
+    if value:
         print('sending value')
         print(value)
-        send_cmd(str(value) + "\n",False)
+        send_cmd(str(value) + "\n",True)
         print(read_data())
 
-    send_cmd("1\n",True)
+    send_cmd("1\n",False)
 
     list_print(read_data())
 
@@ -498,7 +534,7 @@ def createConstructorInterpretation():
 @app.route('/api/check2', methods=["POST"])
 def check2():
     content = request.get_json()
-    notes = content["notes"]
+    notes = content["terms"]
     data, cdata = get_state()
     print('notes!!!')
     print(notes)
