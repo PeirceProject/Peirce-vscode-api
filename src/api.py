@@ -20,22 +20,7 @@ temp_input_file_name = "inputs.txt"
 
 file_name = None
 p = None
-'''
-if (interp_type == "Duration"):
-            input+="2\n"
-        elif(interp_type == "Time"):
-            input+="3\n"
-        elif(interp_type=="Scalar"):
-            input+="4\n"
-        elif(interp_type=="Time Transinterp_type"):
-            input+="5\n"
-        elif(interp_type=="Position1D"):
-            input+="7\n"
-        elif(interp_type=="Displacement1D"):
-            input+="6\n"
-        elif(interp_type=="Geom1D Transinterp_type"):
-            input+="8\n"
-'''
+
 interp_type_to_menu_index = \
 {
     "Duration":"2",
@@ -47,7 +32,10 @@ interp_type_to_menu_index = \
     "Geom1D Transform":"8",
     "Displacement3D":"9",
     "Position3D":"10",
-    "Geom3D Transform":"11"
+    "Orientation3D":"11",
+    "Rotation3D":"12",
+    "Pose3D":"13",
+    "Geom3D Transform":"14"
 }
 
 def list_print(str_list):
@@ -317,11 +305,6 @@ def createSpaceInterpretation():
         for i in range(len(space["basis"])):
             send_cmd(str(space["basis"][i])+"\n",False)
             list_print(read_data())
-        #list_print(read_data())
-        #send_cmd(str(space["basis"])+"\n",False)
-        #list_print(read_data())
-        #order_of_spaces[hash_space(space)] = dict_count
-        #dict_count+=1
 
     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
@@ -393,8 +376,7 @@ def createTermInterpretation():
                 break
             else:
                 print('not found!')
-    
-    if domain and codomain:
+    elif domain and codomain:
         space_prompt = None
         space_prompt = read_data()
         list_print(space_prompt)
@@ -435,7 +417,6 @@ def createTermInterpretation():
         print('sending value')
         print(value)
         value = value or [0]
-        #if True: #value is not None:
         for i in range(len(value)):
             print('sending value')
             print(value)
@@ -444,9 +425,6 @@ def createTermInterpretation():
             else:
                 send_cmd(str(value[i]) + "\n",False)
             print(read_data())
-
-    #send_cmd("0\n",True)
-    #list_print(read_data())
 
     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
