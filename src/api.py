@@ -49,7 +49,7 @@ def read_data():
         for ln_ in p.stdout:
             lns_.append(ln_.decode('utf-8'))
         if(len(lns_)==0):
-            time.sleep(.25)
+            time.sleep(.125)
     return lns_
 
 def send_cmd(cmd, wait = True):
@@ -64,8 +64,8 @@ def send_cmd(cmd, wait = True):
 def get_state_process(f_name):
     global p
     global file_name
-    if(is_running_file(f_name)):
-        return
+    #if(is_running_file(f_name)):
+    #    return
     if p is not None:
         p.kill()
     print('running peirce on file' + f_name)
@@ -512,17 +512,23 @@ def createConstructorInterpretation():
 @app.route('/api/check2', methods=["POST"])
 def check2():
     content = request.get_json()
-    notes = content["terms"]
+    terms = content["terms"]
     data, cdata = get_state()
-    print('notes!!!')
-    print(notes)
-    for i in range(len(notes)):
-        notes[i]["error"] = data[i]["error"]
-
+    print('terms!!!')
+    print(terms)
+    print('end terms!!')
+    for i in range(len(terms)):
+        print('set term i...,.')
+        if len(data) > i:
+            terms[i]["error"] = data[i]["error"]
+        elif len(data) > 0:
+            terms[i]["error"] = data[0]["error"]
+        else:
+            terms[i]["error"] = "No Error Detected"
     print('returning...')
-    print(notes)
+    print(terms)
     response = app.response_class(
-        response=json.dumps(notes),
+        response=json.dumps(terms),
         status=200,
         mimetype='application/json'
     )

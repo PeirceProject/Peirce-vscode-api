@@ -75,3 +75,7 @@ bash: /peirce/Peirce-vscode-api/bin/grab_peirce_constructor_interps.sh: No such 
 bash: /peirce/Peirce-vscode-api/bin/grab_peirce_constructor_names.sh: No such file or directory
 bash: /peirce/Peirce-vscode-api/bin/grab_peirce_constructor_types.sh: No such file or directory
 127.0.0.1 - - [05/Jun/2021 00:40:38] "[37mPOST /api/populate HTTP/1.1[0m" 200 -
+Traceback (most recent call last):
+  File "src/api.py", line 1, in <module>
+    import flask
+ModuleNotFoundError: No module named 'flask'
