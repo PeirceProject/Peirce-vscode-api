@@ -518,6 +518,8 @@ def check2():
     print(terms)
     print('end terms!!')
     for i in range(len(terms)):
+        #not sure why I had to do this...but
+        #remove this soon :) 
         print('set term i...,.')
         if len(data) > i:
             terms[i]["error"] = data[i]["error"]
