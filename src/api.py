@@ -1,3 +1,4 @@
+from typing import ValuesView
 import flask
 from flask import jsonify, request
 import json
@@ -6,6 +7,9 @@ import subprocess
 import fcntl, os
 import time
 import re
+
+from flask.helpers import send_from_directory
+import peirce_constants
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -20,23 +24,6 @@ temp_input_file_name = "inputs.txt"
 
 file_name = None
 p = None
-
-interp_type_to_menu_index = \
-{
-    "Duration":"2",
-    "Time":"3",
-    "Scalar":"4",
-    "Time Transform":"5",
-    "Position1D":"7",
-    "Displacement1D":"6",
-    "Geom1D Transform":"8",
-    "Displacement3D":"9",
-    "Position3D":"10",
-    "Orientation3D":"11",
-    "Rotation3D":"12",
-    "Pose3D":"13",
-    "Geom3D Transform":"14"
-}
 
 def list_print(str_list):
     for ln_ in str_list:
@@ -111,9 +98,10 @@ def get_state(fname = None):
         #print("Coordinates from Peirce:")
         #print(coordinates)
 
-        send_cmd('0\n', False)
+        send_cmd(peirce_constants.print_table_ + '\n', False)
         resp = read_data()
         print('get coords response:::')
+        list_print(resp)
         #print()
         coords2 = []
         interps2 = []
@@ -145,28 +133,15 @@ def get_state(fname = None):
                 error_msgs.append(resp_.strip().split("Error Message: ")[1])
                 print(error_msgs[-1])
                 #print('not type')
-        '''
-        send_cmd("4\n",False)
-        error_data = read_data()
-        print('ERROR DATA:')
-        list_print(error_data)
-        error_msgs = []
-        for ln_ in error_data:
-            print('error ln : ' + ln_)
-            if "Error Message: " in ln_:
-                print('found error')
-                error_msgs.append(ln_.strip().split("Error Message: ")[1])
-                print(error_msgs[-1])
-            else:
-                print('not found!')
-        '''
-        send_cmd('4\n', False)
+
+        send_cmd(peirce_constants.print_all_terms_+'\n', False)
         resp = read_data()
-        print('ALL DATA DUMP:')
-        list_print(resp)
+        #print('ALL DATA DUMP:')
+        #list_print(resp)
         print('get coords response:::')
         #print()
         all_coords = []
+        all_names = []
         all_interps = []
         all_types = []
         all_error_msgs = []
@@ -177,6 +152,10 @@ def get_state(fname = None):
                 all_interps.append(resp_.strip())
             else :
                 pass 
+            
+            m = re.search('Snippet: (.*)',resp_)
+            if m:
+                all_names.append(m.group(1).strip()[0:-1])
             #    print('not existing')
             if 'Begin' in resp_ and 'End' in resp_:
             #    print(' beginning')
@@ -203,12 +182,12 @@ def get_state(fname = None):
         interp_array = interps2#interps.splitlines()
         type_array = types2#types.splitlines()
 
-        print('TERM RESULTS:')
-        print(resp_)
-        print(coord_array)
-        print(interp_array)
-        print(type_array)
-        print(error_msgs)
+        #print('TERM RESULTS:')
+        #print(resp_)
+        #print(coord_array)
+        #print(interp_array)
+        #print(type_array)
+        #print(error_msgs)
 
         data = [None] * len(coord_array)
         for i in range(len(coord_array)):
@@ -225,7 +204,8 @@ def get_state(fname = None):
                         "end": {"line": end_line, "character": end_col}}, 
                     "interp": interp_array[i].split("Existing Interpretation: ")[1], 
                     "node_type": type_array[i],
-                    "error": error_msgs[i]
+                    "error": error_msgs[i],
+                    "name": all_names[i]
                 }
         
         print('proceeding to alldata')
@@ -246,14 +226,14 @@ def get_state(fname = None):
                     "node_type": all_types[i],
                     "error": all_error_msgs[i]
                 }
-        print('ALL TERMS:')
-        for at_ in all_data:
-            print(at_)
-        print('printed all terms')
+        #print('ALL TERMS:')
+        #for at_ in all_data:
+        #    print(at_)
+        #print('printed all terms')
 
         send_cmd("5\n0\n1\n", False)
         cons_str = read_data()
-        print(cons_str)
+        #print(cons_str)
         peirce_cinterps = []
         peirce_cnames = []
         peirce_ctypes = []
@@ -268,13 +248,13 @@ def get_state(fname = None):
                 peirce_ctypes.append(m.group(1).strip())
 
 
-        for data_ in cons_str:
-            print(data_)
+        #for data_ in cons_str:
+        #    print(data_)
 
-        print('CONSTRUCTOR RESULTS:')
-        print(peirce_cinterps)
-        print(peirce_cnames)
-        print(peirce_ctypes)
+        #print('CONSTRUCTOR RESULTS:')
+        #print(peirce_cinterps)
+        #print(peirce_cnames)
+        #print(peirce_ctypes)
 
 
         cdata = [None] * len(peirce_cinterps)
@@ -287,6 +267,7 @@ def get_state(fname = None):
         #print(cdata)
 
         print('RETURNING')
+
 
         return data, cdata, all_data
     except Exception as e:
@@ -301,8 +282,8 @@ def populate():
     file_name = content["fileName"]
 
 
-    if not is_running_file(file_name):
-        get_state_process(file_name)
+    #if not is_running_file(file_name):
+    get_state_process(file_name)
 
 
     print("FILE NAME")
@@ -312,7 +293,7 @@ def populate():
     temp_file_name = file_name if file_name else _temp_file_name 
 
     data, cdata, all_data = get_state()
-    while(len(data) > 50):
+    while(len(data) > 100):
         data, cdata, all_data = get_state()
 
     notes = content["terms"]
@@ -322,10 +303,19 @@ def populate():
         mimetype='application/json'
     )
     
-    print('alldataresult:')
-    for ad_ in all_data:
-        print(ad_)
-    print(json.dumps({'data':data,'cdata':cdata, 'adata':all_data}))
+    print('DATA:')
+    print(len(data))
+    list_print(data)
+    print('CDATA:')
+    print(len(cdata))
+    list_print(cdata)
+    print('ALL DATA:')
+    print(len(all_data))
+    list_print(all_data)
+    #print('alldataresult:')
+    #for ad_ in all_data:
+    #    print(ad_)
+    #print(json.dumps({'data':data,'cdata':cdata, 'adata':all_data}))
     return response
 
 
@@ -333,7 +323,7 @@ def populate():
 def createSpaceInterpretation():
     content = request.get_json()
     space = content["space"]
-    send_cmd("2\n", False)
+    send_cmd(peirce_constants.create_space_+"\n", False)
     
     list_print(read_data())
 
@@ -387,8 +377,19 @@ def createSpaceInterpretation():
 def createTermInterpretation():
     content = request.get_json()
     term = content["term"]
-    idx = 7
+    idx = int(peirce_constants.annotate_start_)
+    print('STARTING CREATE')
     data, cdata, adata = get_state()
+    print('DATA:')
+    print(len(data))
+    list_print(data)
+    print('CDATA:')
+    print(len(cdata))
+    list_print(cdata)
+    print('ALL DATA:')
+    print(len(adata))
+    list_print(adata)
+
     for i in range(len(data)):
         term_ = data[i]
         if \
@@ -416,11 +417,162 @@ def createTermInterpretation():
     codomain = interp["codomain"] if "codomain" in interp else None
     value = interp["value"] if "value" in interp else None
     node_type = term["node_type"]
+    if peirce_constants.timestamped_ in interp_type:
+        name = value['name']
+
 
     print('sending option....')
     print(interp_type)
-    print(str(interp_type_to_menu_index[interp_type]))
-    send_cmd(str(interp_type_to_menu_index[interp_type])+"\n",False)
+    #print(str(peirce_constants.interp_type_to_menu_index[interp_type]))
+    if peirce_constants.timeseries_ in interp_type:
+        send_cmd(peirce_constants.interp_type_to_menu_index[peirce_constants.timeseries_]+"\n",False)
+        list_print(read_data())
+        send_cmd(str(peirce_constants.time_series_map[interp_type])+"\n",False)
+        time_space = interp["time_space"]
+        space = interp["space"] if "space" in interp else None
+        domain = interp["domain"] if "domain" in interp else None
+        codomain = interp["codomain"] if "codomain" in interp else None
+
+        #list_print(read_data())
+        space_prompt = read_data()
+        list_print(space_prompt)
+        options = []
+        for ln_ in space_prompt:
+                m = re.search(' - (.*) ', ln_.strip())
+                print('AT LINE : ' + ln_)
+                if(m):
+                    options.append(m.groups(1)[0])
+                    print('found option  ')
+                    print(m.groups(1)[0])
+                else:
+                    print('no option')
+        print('parent options')
+        print(options)
+        print('space target?')
+        print(time_space)
+        for i in range(len(options)):
+            if options[i] == time_space["label"]:
+                print('found!')
+                send_cmd(str(i+1)+"\n",False)
+                #list_print(read_data())
+                break
+            else:
+                print('not found!')
+        if space:
+            space_prompt = read_data()
+            list_print(space_prompt)
+            options = []
+            for ln_ in space_prompt:
+                    m = re.search(' - (.*) ', ln_.strip())
+                    print('AT LINE : ' + ln_)
+                    if(m):
+                        options.append(m.groups(1)[0])
+                        print('found option  ')
+                        print(m.groups(1)[0])
+                    else:
+                        print('no option')
+            print('parent options')
+            print(options)
+            print('space target?')
+            print(space)
+            for i in range(len(options)):
+                if options[i] == space["label"]:
+                    print('found!')
+                    send_cmd(str(i+1)+"\n",False)
+                    list_print(read_data())
+                    break
+                else:
+                    print('not found!')
+        if domain:
+            space_prompt = read_data()
+            list_print(space_prompt)
+            options = []
+            for ln_ in space_prompt:
+                    m = re.search(' - (.*) ', ln_.strip())
+                    print('AT LINE : ' + ln_)
+                    if(m):
+                        options.append(m.groups(1)[0])
+                        print('found option  ')
+                        print(m.groups(1)[0])
+                    else:
+                        print('no option')
+            print('parent options')
+            print(options)
+            print('space target?')
+            print(domain)
+            for i in range(len(options)):
+                if options[i] == domain["label"]:
+                    print('found!')
+                    send_cmd(str(i+1)+"\n",False)
+                    break
+                else:
+                    print('not found!')
+        if codomain:
+            space_prompt = read_data()
+            list_print(space_prompt)
+            options = []
+            for ln_ in space_prompt:
+                    m = re.search(' - (.*) ', ln_.strip())
+                    print('AT LINE : ' + ln_)
+                    if(m):
+                        options.append(m.groups(1)[0])
+                        print('found option  ')
+                        print(m.groups(1)[0])
+                    else:
+                        print('no option')
+            print('parent options')
+            print(options)
+            print('space target?')
+            print(codomain)
+            for i in range(len(options)):
+                if options[i] == codomain["label"]:
+                    print('found!')
+                    send_cmd(str(i+1)+"\n",False)
+                    list_print(read_data())
+                    break
+                else:
+                    print('not found!')
+
+        return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+    else:
+        send_cmd(str(peirce_constants.interp_type_to_menu_index[interp_type])+"\n",False)
+
+    if interp_type == peirce_constants.timeseries_value_:
+        time_series = interp['time_series']
+        time_value = interp['time_value'] if 'time_value' in interp else None
+        ts_prompt = read_data()
+        list_print(ts_prompt)
+        options = []
+        for ln_ in ts_prompt:
+                m = re.search(' - (.*) ', ln_.strip())
+                print('AT LINE : ' + ln_)
+                if(m):
+                    options.append(m.groups(1)[0])
+                    print('found option  ')
+                    print(m.groups(1)[0])
+                else:
+                    print('no option')
+        print('parent options')
+        print(options)
+        print('space target?')
+        print(time_series)
+        for i in range(len(options)):
+            if options[i] == time_series["name"]:
+                print('found!')
+                send_cmd(str(i+1)+"\n",False)
+                list_print(read_data())
+                break
+            else:
+                print('not found!')
+
+        if time_value:
+            send_cmd('2\n',False)
+            send_cmd(str(time_value)+'\n',True)
+        else:
+            send_cmd('1\n',True)
+
+        return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
 
     if "IDENT" not in node_type: #this doesnt need to be here. check the prompts. 
         print('sending name cmd...')
@@ -489,8 +641,121 @@ def createTermInterpretation():
                 break
             else:
                 print('not found!')
+    
+    if peirce_constants.timestamped_ in interp_type:
+        print('entering logic block')
+        timestamp = interp['timestamp']
+        tsname = timestamp['space']['label']
+        space_prompt = None
+        space_prompt = read_data()
+        list_print(space_prompt)
+        options = []
+        for ln_ in space_prompt:
+                m = re.search(' - (.*) ', ln_.strip())
+                print('AT LINE : ' + ln_)
+                if(m):
+                    options.append(m.groups(1)[0])
+                    print('found option  ')
+                    print(m.groups(1)[0])
+                else:
+                    print('no option')
+        print('parent options')
+        print(options)
+        print('space target?')
+        print(space)
+        for i in range(len(options)):
+            if options[i] == tsname:
+                print('found!')
+                send_cmd(str(i+1)+"\n",False)
+                break
+            else:
+                print('not found!')
+        list_print(read_data())
+        print('entering timestamp...')
+        send_cmd(str(timestamp['value'][0])+'\n',False)
 
-    if value:
+        space = value['space'] if 'space' in value else None
+        domain = value["domain"] if "domain" in value else None
+        codomain = value["codomain"] if "codomain" in value else None
+        value = value["value"] if "value" in value else None
+            
+        if space:
+            space_prompt = None
+            space_prompt = read_data()
+            list_print(space_prompt)
+            options = []
+            for ln_ in space_prompt:
+                    m = re.search(' - (.*) ', ln_.strip())
+                    print('AT LINE : ' + ln_)
+                    if(m):
+                        options.append(m.groups(1)[0])
+                        print('found option  ')
+                        print(m.groups(1)[0])
+                    else:
+                        print('no option')
+            print('parent options')
+            print(options)
+            print('space target?')
+            print(space)
+            for i in range(len(options)):
+                if options[i] == space["label"]:
+                    print('found!')
+                    send_cmd(str(i+1)+"\n",False)
+                    list_print(read_data())
+                    break
+                else:
+                    print('not found!')
+        elif domain and codomain:
+            space_prompt = None
+            space_prompt = read_data()
+            list_print(space_prompt)
+            options = []
+            for ln_ in space_prompt:
+                    m = re.search(' - (.*) ', ln_.strip())
+                    print('AT LINE : ' + ln_)
+                    if(m):
+                        options.append(m.groups(1)[0])
+                        print('found option  ')
+                        print(m.groups(1)[0])
+                    else:
+                        print('no option')
+            print('parent options')
+            print(options)
+            print('space target?')
+            print(domain)
+            for i in range(len(options)):
+                if options[i] == domain["label"]:
+                    print('found!')
+                    send_cmd(str(i+1)+"\n",False)
+                    list_print(read_data())
+                    break
+                else:
+                    print('not found!')
+            print('space target?')
+            print(codomain)
+            for i in range(len(options)):
+                if options[i] == codomain["label"]:
+                    print('found!')
+                    send_cmd(str(i+1)+"\n",True)
+                    list_print(read_data())
+                    break
+                else:
+                    print('not found!')
+        else:
+            list_print(read_data())
+        if value:
+            print('sending value')
+            print(value)
+            value = value or [0]
+            for i in range(len(value)):
+                print('sending value')
+                print(value)
+                if i == len(value)-1:
+                    send_cmd(str(value[i]) + "\n",True)
+                else:
+                    send_cmd(str(value[i]) + "\n",False)
+                print(read_data())
+    elif value:
         print('sending value')
         print(value)
         value = value or [0]
@@ -515,7 +780,7 @@ def createConstructorInterpretation():
     data, cdata, adata = get_state()
     print('CONSTRUCTOR : ')
     print(constructor)
-    send_cmd("5\n", False)
+    send_cmd(peirce_constants.annotate_constructors_+"\n", False)
     list_print(read_data())
     for i in range(len(cdata)):
         cons_ = cdata[i]
@@ -544,7 +809,7 @@ def createConstructorInterpretation():
     node_type = constructor["node_type"]
 
     
-    send_cmd(str(interp_type_to_menu_index[interp_type])+"\n",False)
+    send_cmd(str(peirce_constants.interp_type_to_menu_index[interp_type])+"\n",False)
 
     if space:
         space_prompt = None
@@ -629,4 +894,189 @@ def check3():
     )
     return response
 
+@app.route('/api/createTimeSeries', methods=["POST"])
+def createTimeSeries():
+    content = request.get_json()
+
+    interp = content["time_series"]
+    name = interp["name"]
+    interp_type = interp["interp_type"]
+    time_space = interp["time_space"]
+    space = interp["space"] if "space" in interp else None
+    domain = interp["domain"] if "domain" in interp else None
+    codomain = interp["codomain"] if "codomain" in interp else None
+
+    send_cmd(peirce_constants.create_time_series_+'\n',False)
+    list_print(read_data())
+    if interp_type == 'Pose3D Time Series':
+        send_cmd('1\n',False)
+    elif interp_type == 'Geom3D Transform Time Series':
+        send_cmd('2\n',False)
+    list_print(read_data())
+    send_cmd(name+'\n',False)
+    space_prompt = read_data()
+    list_print(space_prompt)
+    options = []
+    for ln_ in space_prompt:
+            m = re.search(' - (.*) ', ln_.strip())
+            print('AT LINE : ' + ln_)
+            if(m):
+                options.append(m.groups(1)[0])
+                print('found option  ')
+                print(m.groups(1)[0])
+            else:
+                print('no option')
+    print('parent options')
+    print(options)
+    print('space target?')
+    print(time_space)
+    for i in range(len(options)):
+        if options[i] == time_space["label"]:
+            print('found!')
+            send_cmd(str(i+1)+"\n",False)
+            #list_print(read_data())
+            break
+        else:
+            print('not found!')
+    if space:
+        space_prompt = read_data()
+        list_print(space_prompt)
+        options = []
+        for ln_ in space_prompt:
+                m = re.search(' - (.*) ', ln_.strip())
+                print('AT LINE : ' + ln_)
+                if(m):
+                    options.append(m.groups(1)[0])
+                    print('found option  ')
+                    print(m.groups(1)[0])
+                else:
+                    print('no option')
+        print('parent options')
+        print(options)
+        print('space target?')
+        print(space)
+        for i in range(len(options)):
+            if options[i] == space["label"]:
+                print('found!')
+                send_cmd(str(i+1)+"\n",False)
+                list_print(read_data())
+                break
+            else:
+                print('not found!')
+    if domain:
+        space_prompt = read_data()
+        list_print(space_prompt)
+        options = []
+        for ln_ in space_prompt:
+                m = re.search(' - (.*) ', ln_.strip())
+                print('AT LINE : ' + ln_)
+                if(m):
+                    options.append(m.groups(1)[0])
+                    print('found option  ')
+                    print(m.groups(1)[0])
+                else:
+                    print('no option')
+        print('parent options')
+        print(options)
+        print('space target?')
+        print(domain)
+        for i in range(len(options)):
+            if options[i] == domain["label"]:
+                print('found!')
+                send_cmd(str(i+1)+"\n",False)
+                break
+            else:
+                print('not found!')
+    if codomain:
+        space_prompt = read_data()
+        list_print(space_prompt)
+        options = []
+        for ln_ in space_prompt:
+                m = re.search(' - (.*) ', ln_.strip())
+                print('AT LINE : ' + ln_)
+                if(m):
+                    options.append(m.groups(1)[0])
+                    print('found option  ')
+                    print(m.groups(1)[0])
+                else:
+                    print('no option')
+        print('parent options')
+        print(options)
+        print('space target?')
+        print(codomain)
+        for i in range(len(options)):
+            if options[i] == codomain["label"]:
+                print('found!')
+                send_cmd(str(i+1)+"\n",False)
+                list_print(read_data())
+                break
+            else:
+                print('not found!')
+
+    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
+
+#andrew start here in morning
+@app.route('/api/addValueToTimeSeries', methods=["POST"])
+def createTimeSeriesValue():
+    content = request.get_json()
+    #content = content["data"]
+    interp = content["interpretation"]
+    print(interp)
+    name = interp["name"]
+    interp_type = interp["interp_type"]
+    time_series = interp['series_name']#content["time_series"]
+    timestamp = interp["timestamp"]
+    value = interp["value"]
+    time_series = interp['series_name']
+    values = value["value"] if 'value' in value else []
+
+    send_cmd(peirce_constants.add_timeseries_value_+'\n',False)
+    ts_prompt = read_data()
+    list_print(ts_prompt)
+    options = []
+    for ln_ in ts_prompt:
+            m = re.search(' - (.*) ', ln_.strip())
+            print('AT LINE : ' + ln_)
+            if(m):
+                options.append(m.groups(1)[0])
+                print('found option  ')
+                print(m.groups(1)[0])
+            else:
+                print('no option')
+    print('parent options')
+    print(options)
+    print('space target?')
+    print(time_series)
+    for i in range(len(options)):
+        if options[i] == time_series:
+            print('found!')
+            if(len(values) == 0):
+                send_cmd(str(i+1)+"\n",True)
+            else:
+                send_cmd(str(i+1)+"\n",False)
+            list_print(read_data())
+            break
+        else:
+            print('not found!')
+
+    send_cmd(str(timestamp["value"][0])+"\n",False)
+    list_print(read_data())
+
+    if len(values) > 0:
+        #send_cmd(str(value["value"][0])+"\n",False)
+        for i in range(len(values)):
+            print('sending value')
+            print(values)
+            if i == len(values)-1:
+                send_cmd(str(values[i]) + "\n",True)
+            else:
+                send_cmd(str(values[i]) + "\n",False)
+            list_print(read_data())
+
+    #if(interp_type == "TimeStamped Pose3D")
+
+    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
+    
 app.run(host="0.0.0.0", port=8080)
