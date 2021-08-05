@@ -4,3 +4,4 @@ temp.cpp
 inputs.txt
 PeirceOutput_CHECK.lean
 nohup.out
+*.pyc
