@@ -188,6 +188,12 @@ def get_state(fname = None):
         #print(interp_array)
         #print(type_array)
         #print(error_msgs)
+        print("LENGTHS:")
+        print(len(coord_array))
+        print(len(interp_array))
+        print(len(type_array))
+        print(len(error_msgs))
+        print(len(all_names))
 
         data = [None] * len(coord_array)
         for i in range(len(coord_array)):
@@ -197,6 +203,10 @@ def get_state(fname = None):
             end = coord_array[i].split("End:")[1]
             end_line = int(end.split("line ")[1].split(",")[0])-1
             end_col = int(end.split("column ")[1])
+            print('AT I')
+            print(type_array[i])
+            print(error_msgs[i])
+            print(all_names[i])
             data[i] = \
                 {
                     "coords": {
@@ -231,9 +241,11 @@ def get_state(fname = None):
         #    print(at_)
         #print('printed all terms')
 
-        send_cmd("5\n0\n1\n", False)
+        send_cmd(peirce_constants.annotate_constructors_+"\n0\n1\n", False)
         cons_str = read_data()
         #print(cons_str)
+        print('THIS IS CONS OUTPUT:')
+        list_print(cons_str)
         peirce_cinterps = []
         peirce_cnames = []
         peirce_ctypes = []
@@ -263,8 +275,8 @@ def get_state(fname = None):
                 "interp": peirce_cinterps[i].split("Existing Interpretation: ")[1],\
                          "node_type": peirce_ctypes[i], \
                 "name": peirce_cnames[i]        }
-        #print('PRINTING C DATA')
-        #print(cdata)
+        print('PRINTING C DATA')
+        print(cdata)
 
         print('RETURNING')
 
