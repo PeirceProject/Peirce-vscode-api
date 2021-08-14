@@ -176,8 +176,6 @@ def get_state(fname = None):
                 print(all_error_msgs[-1])
                 #print('not type')
 
-        print('exited this part')
-
         coord_array = coords2#coordinates.splitlines()
         interp_array = interps2#interps.splitlines()
         type_array = types2#types.splitlines()
@@ -260,15 +258,6 @@ def get_state(fname = None):
                 peirce_ctypes.append(m.group(1).strip())
 
 
-        #for data_ in cons_str:
-        #    print(data_)
-
-        #print('CONSTRUCTOR RESULTS:')
-        #print(peirce_cinterps)
-        #print(peirce_cnames)
-        #print(peirce_ctypes)
-
-
         cdata = [None] * len(peirce_cinterps)
         for i in range(len(peirce_cinterps)):
             cdata[i] = { \
@@ -276,12 +265,41 @@ def get_state(fname = None):
                          "node_type": peirce_ctypes[i], \
                 "name": peirce_cnames[i]        }
         print('PRINTING C DATA')
-        print(cdata)
+        list_print(cdata)
+
+        #raise 'whoo'
+
+        send_cmd(peirce_constants.annotate_functions_+"\n0\n1\n", False)
+        func_str = read_data()
+        #print(cons_str)
+        print('THIS IS FUNC OUTPUT:')
+        list_print(func_str)
+        peirce_finterps = []
+        peirce_fnames = []
+        peirce_ftypes = []
+        for resp_ in func_str:
+            if 'Existing Interpretation' in resp_:
+                peirce_finterps.append(resp_.strip())
+            m = re.search('Snippet: (.*)',resp_)
+            if m:
+                peirce_fnames.append(m.group(1).strip())
+            m = re.search(', (.*), Ann',resp_)
+            if m :
+                peirce_ftypes.append(m.group(1).strip())
+
+        fdata = [None] * len(peirce_finterps)
+        for i in range(len(peirce_finterps)):
+            fdata[i] = { \
+                "interp": peirce_finterps[i].split("Existing Interpretation: ")[1],\
+                         "node_type": peirce_ftypes[i], \
+                "name": peirce_fnames[i]        }
+        print('PRINTING F DATA')
+        print(fdata)
 
         print('RETURNING')
+       # raise 'hmm?'
 
-
-        return data, cdata, all_data
+        return data, cdata, fdata, all_data
     except Exception as e:
         print(e)
 
@@ -304,13 +322,13 @@ def populate():
     global temp_file_name
     temp_file_name = file_name if file_name else _temp_file_name 
 
-    data, cdata, all_data = get_state()
+    data, cdata, fdata, all_data = get_state()
     while(len(data) > 100):
-        data, cdata, all_data = get_state()
+        data, cdata, fdata, all_data = get_state()
 
     notes = content["terms"]
     response = app.response_class(
-        response=json.dumps({'data':data,'cdata':cdata,'adata':all_data}),
+        response=json.dumps({'data':data,'cdata':cdata,'fdata':fdata,'adata':all_data}),
         status=200,
         mimetype='application/json'
     )
@@ -321,6 +339,9 @@ def populate():
     print('CDATA:')
     print(len(cdata))
     list_print(cdata)
+    print('FDATA:')
+    print(len(fdata))
+    list_print(fdata)
     print('ALL DATA:')
     print(len(all_data))
     list_print(all_data)
@@ -329,7 +350,6 @@ def populate():
     #    print(ad_)
     #print(json.dumps({'data':data,'cdata':cdata, 'adata':all_data}))
     return response
-
 
 @app.route('/api/createSpace', methods=["POST"])
 def createSpaceInterpretation():
@@ -391,7 +411,7 @@ def createTermInterpretation():
     term = content["term"]
     idx = int(peirce_constants.annotate_start_)
     print('STARTING CREATE')
-    data, cdata, adata = get_state()
+    data, cdata, fdata, adata = get_state()
     print('DATA:')
     print(len(data))
     list_print(data)
@@ -782,14 +802,12 @@ def createTermInterpretation():
 
     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
-    
-
 @app.route('/api/createConstructorInterpretation', methods=["POST"])
 def createConstructorInterpretation():
     content = request.get_json()
     constructor = content["constructor"]
     idx = 2
-    data, cdata, adata = get_state()
+    data, cdata, fdata, adata = get_state()
     print('CONSTRUCTOR : ')
     print(constructor)
     send_cmd(peirce_constants.annotate_constructors_+"\n", False)
@@ -863,11 +881,91 @@ def createConstructorInterpretation():
 
     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
+@app.route('/api/createFunctionInterpretation', methods=["POST"])
+def createFunctionInterpretation():
+    content = request.get_json()
+    function = content["function_item"]
+    idx = 2
+    data, cdata, fdata, adata = get_state()
+    print('FUNCTION : ')
+    print(function)
+    send_cmd(peirce_constants.annotate_functions_+"\n", False)
+    list_print(read_data())
+    for i in range(len(fdata)):
+        func_ = fdata[i]
+        print('func_i')
+        print(func_)
+        
+        if \
+            func_["name"] == function["name"]:
+            print('found term!')
+            idx += i
+            break
+        else: 
+            print('term not found!')
+
+    send_cmd(str(idx)+"\n",False)
+    print(read_data())
+
+
+    interp = function["interpretation"]
+    name = interp["name"]
+    interp_type = interp["interp_type"]
+    space = interp["space"] if "space" in interp else None
+    domain = interp["domain"] if "domain" in interp else None
+    codomain = interp["codomain"] if "codomain" in interp else None
+    value = interp["value"] if "value" in interp else None
+    #node_type = function["node_type"]
+
+    
+    send_cmd(str(peirce_constants.interp_type_to_menu_index[interp_type])+"\n",False)
+
+    if space:
+        space_prompt = None
+        
+        space_prompt = read_data()
+        list_print(space_prompt)
+        options = []
+        for ln_ in space_prompt:
+                m = re.search(' - (.*) ', ln_.strip())
+                print('AT LINE : ' + ln_)
+                if(m):
+                    options.append(m.groups(1)[0])
+                    print('found option  ')
+                    print(m.groups(1)[0])
+                else:
+                    print('no option')
+        print('parent options')
+        print(options)
+        print('space target?')
+        print(space)
+        for i in range(len(options)):
+            if options[i] == space["label"]:
+                print('found!')
+                send_cmd(str(i+1)+"\n",False)
+                list_print(read_data())
+                break
+            else:
+                print('not found!')
+    
+    if value:
+        print('sending value')
+        print(value)
+        send_cmd(str(value) + "\n",True)
+        print(read_data())
+
+    send_cmd("1\n",False)
+
+    list_print(read_data())
+
+    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
+
 @app.route('/api/check2', methods=["POST"])
 def check2():
     content = request.get_json()
     terms = content["terms"]
-    data, cdata, adata = get_state()
+    data, cdata, fdata, adata = get_state()
     print('terms!!!')
     print(terms)
     print('end terms!!')
@@ -894,7 +992,7 @@ def check2():
 def check3():
     content = request.get_json()
     
-    data, cdata, adata = get_state()
+    data, cdata, fdata, adata = get_state()
 
     print('RETURNING ADATA')
     list_print(adata)
